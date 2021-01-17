@@ -71,15 +71,20 @@ class MADDPG:
         """ Sample from Replay Buffer and update actor-critic weights """
 
         states, actions, rewards, next_states, dones = experiences
-
+        
         # Decode
-        states = self.decode(states, agent_num)
-        actions = self.decode(actions, agent_num)
-        rewards = self.decode(rewards, agent_num)
-        next_states = self.decode(next_states, agent_num)
-        dones = self.decode(dones, agent_num)
+        state = self.decode(states, agent_num)
+        action = self.decode(actions, agent_num)
+        reward = self.decode(rewards, agent_num)
+        next_state = self.decode(next_states, agent_num)
+        done = self.decode(dones, agent_num)
 
-        decoded_experiences = (states, actions, rewards, next_states, dones)
+        # Exclusive to Tennis environment
+        opp_num = 1 if agent_num == 0 else 0
+        opp_action = self.decode(actions, opp_num)
+        opp_next_state = self.decode(next_states, opp_num)
+
+        decoded_experiences = (state, action, reward, next_state, done, opp_action, opp_next_state)
 
         self.DDPGs[agent_num].learn(decoded_experiences, gamma)
 
@@ -190,12 +195,14 @@ class DDPG:
                 experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
                 gamma (float): discount factor
             """
-            states, actions, rewards, next_states, dones = experiences
+            states, actions, rewards, next_states, dones, opp_actions, opp_next_states = experiences
 
             # ---------------------------- update critic ---------------------------- #
             # Get predicted next-state actions and Q values from target models
+            
             actions_next = self.target_actor(next_states)
-            Q_targets_next = self.target_critic(next_states, actions_next)
+            actions_next_other_player = self.target_actor(opp_next_states)
+            Q_targets_next = self.target_critic(next_states, actions_next, actions_next_other_player)
             # Compute Q targets for current states (y_i)
             Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
             # Compute critic loss
@@ -209,7 +216,7 @@ class DDPG:
             # ---------------------------- update actor ---------------------------- #
             # Compute actor loss
             actions_pred = self.actor(states)
-            actor_loss = -self.critic(states, actions_pred).mean()
+            actor_loss = -self.critic(states, actions_pred, opp_actions).mean()
             # Minimize the loss, thererby maximizing the reward
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
