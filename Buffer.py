@@ -11,12 +11,14 @@ import random
 import torch
 import random
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 field_names = ["state", "action", "reward", "next_state", "done"]
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, action_size, buffer_size, batch_size, seed, device):
+    def __init__(self, action_size, num_agents, buffer_size, batch_size, seed, device):
         """Initialize a ReplayBuffer object.
         Params
         ======
@@ -24,11 +26,11 @@ class ReplayBuffer:
             batch_size (int): size of each training batch
         """
 
-        self.action_size = action_size
+        self.action_size = action_size,
+        self.num_agents = num_agents
         self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=field_names)
-        self.device = device
         self.seed = random.seed(seed)
     
     def add(self, state, action, reward, next_state, done):
@@ -42,21 +44,11 @@ class ReplayBuffer:
         # Sample an experience with length k from list of memories
         experiences = random.sample(self.memory, k=self.batch_size)
 
-        # For each item in the tuple, stack vertically and convert to GPU torch tensor
-        states = np.vstack([e.state for e in experiences if e is not None])
-        states = torch.from_numpy(states).float().to(self.device) # (float)
-
-        actions = np.vstack([e.action for e in experiences if e is not None])
-        actions = torch.from_numpy(actions).float().to(self.device) # (float)
-
-        rewards = np.vstack([e.reward for e in experiences if e is not None])
-        rewards = torch.from_numpy(rewards).float().to(self.device) # (float)
-
-        next_states = np.vstack([e.next_state for e in experiences if e is not None])
-        next_states = torch.from_numpy(next_states).float().to(self.device) # float
-
-        dones = np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8) # Make bool an int
-        dones = torch.from_numpy(dones).float().to(self.device)
+        states = [torch.from_numpy(np.vstack([e.state[index] for e in experiences if e is not None])).float().to(device) for index in range(self.num_agents)]
+        actions = [torch.from_numpy(np.vstack([e.action[index] for e in experiences if e is not None])).float().to(device) for index in range(self.num_agents)]
+        next_states = [torch.from_numpy(np.vstack([e.next_state[index] for e in experiences if e is not None])).float().to(device) for index in range(self.num_agents)]            
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)        
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
         return (states, actions, rewards, next_states, dones)
 

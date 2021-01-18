@@ -8,11 +8,12 @@
 
 import torch
 import numpy as np
+import random
 
 class OrnsteinUhlenbeckNoise: 
     ''' Provide Stoichastic Noise for Continuous Action Exploration '''
     
-    def __init__(self, action_size, seed, scale=1.0, mu=0.0, theta=0.15, sigma=0.3):
+    def __init__(self, action_size, seed, scale=1.0, mu=0.0, theta=0.15, sigma=0.2):
         
         self.action_size = action_size
         self.scale = scale
@@ -32,7 +33,7 @@ class OrnsteinUhlenbeckNoise:
         x = self.state
         
         # Weiner Process
-        weiner_process = np.random.randn(len(x))
+        weiner_process = np.random.randn(self.action_size)
        
         # Deriving The Noise State
         dx = self.theta * (self.mu - x) + self.sigma * weiner_process
@@ -41,4 +42,4 @@ class OrnsteinUhlenbeckNoise:
         self.state = x + dx
         
         # Sacle and Convert to Float Tensor
-        return (self.state * self.scale)
+        return (self.state)
